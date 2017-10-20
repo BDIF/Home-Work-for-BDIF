@@ -1,0 +1,40 @@
+#Question 1
+setwd("C:/Users/xiumei/Desktop/big data")
+read.csv("hw unit2.csv")
+plot(year,RAM,type ="o",col="red",main = "RAM of computer")
+
+#Question 2
+f<-read.csv("hw unit2.csv")
+year<-f$Year;RAM<-f$RAM
+plot(year,RAM,type ="o",col="black",main = "RAM of computer")
+
+# load necessary packages
+require(datasets)
+require(class)
+require(grDevices)
+require(lattice)
+
+# define log-returns for the DAX and FTS
+x= year
+y = RAM
+
+# estimated log-returns for the DAX index for different bandwidths
+splines.reg.l1 = smooth.spline(x,y, spar = 0.2)  # lambda = 0.2
+splines.reg.l2 = smooth.spline(x,y, spar = 1)  # lambda = 1
+splines.reg.l3 = smooth.spline(x,y, spar = 2)  # lambda = 2
+
+# plot for the regression results
+
+lines(splines.reg.l1, col = "red", lwd = 2)  # regression line with lambda = 0.2
+lines(splines.reg.l2, col = "green", lwd = 2)  # regression line with lambda = 1
+lines(splines.reg.l3, col = "blue", lwd = 2)  # regression line with lambda = 2
+
+
+#Question 3
+ x = 6
+ n = 1000
+ lambda = 2
+ p = lambda / n
+ dbinom (x,2*n,p) # binomial probability mass function
+ dpois (x, 2*lambda ) # Poisson probability mass function
+ dpois (0, 5 )
