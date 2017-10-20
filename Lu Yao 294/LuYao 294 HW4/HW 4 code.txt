@@ -1,0 +1,303 @@
+rm(list = ls(all = TRUE))
+graphics.off()
+
+# install and load packages
+libraries = c("ccgarch", "rmgarch", "xts", "zoo")
+lapply(libraries, function(x) if (!(x %in% installed.packages())) {
+  install.packages(x)
+})
+lapply(libraries, library, quietly = TRUE, character.only = TRUE)
+
+load(file = "C:/Users/Administrator/Desktop/crix.RData")
+load(file = "C:/Users/Administrator/Desktop/ecrix.RData")
+load(file = "C:/Users/Administrator/Desktop/efcrix.RData")
+
+# three indices return
+ecrix1 = zoo(ecrix, order.by = index(crix1))
+efcrix1 = zoo(efcrix, order.by = index(crix1))
+
+# plot with different x-axis scales with zoo
+my.panel <- function(x, ...) {
+  lines(x, ...)
+  lines(ecrix1, col = "blue")
+  lines(efcrix1, col = "red")
+}
+
+plot.zoo(crix1, plot.type = "multiple", type = "l", lwd = 1.5, panel = my.panel, 
+         main = "Indices in the CRIX family")
+
+# crix return
+cret = diff(log(crix1))
+ecret = diff(log(ecrix1))
+efcret = diff(log(efcrix1))
+rix = zoo(cbind(cret, ecret, efcret), order.by = index(crix1))
+
+# arima fitting for each index
+cr.arfit = arima(cret, order = c(2, 0, 2))
+tsdiag(cr.arfit)
+cres = cr.arfit$residuals
+
+ecr.arfit = arima(ecret, order = c(2, 0, 2))
+tsdiag(ecr.arfit)
+ecres = ecr.arfit$residuals
+
+efcr.arfit = arima(efcret, order = c(2, 0, 2))
+tsdiag(cr.arfit)
+efcres = efcr.arfit$residuals
+
+rixres = zoo(cbind(cres, ecres, efcres), order.by = index(crix1))
+
+# crix, ecrix and efcrix
+garch11.spec = ugarchspec(mean.model = list(armaOrder = c(0, 0)), variance.model = list(garchOrder = c(1, 
+                                                                                                       1), model = "sGARCH"))
+
+dcc.garch11.spec = dccspec(uspec = multispec(replicate(3, garch11.spec)), 
+                           dccOrder = c(1, 1), distribution = "mvnorm")
+
+fitall = dccfit(dcc.garch11.spec, data = rixres)
+print(fitall)
+
+fitall@mfit$Qbar  #unconditional covariance matrix
+
+# standard error of DCC
+fitall@mfit$stdresid
+par(mfrow = c(1, 1))
+serr = zoo(fitall@mfit$stdresid, order.by = index(crix1))
+plot.zoo(serr, plot.type = "multiple", type = "l", lwd = 1.5, main = NA, 
+         xlab = NA)
+
+# new impact covariance surface
+par(mfrow = c(3, 1))
+nisurface(fitall, pair = c(1, 2), plot = T)
+nisurface(fitall, pair = c(1, 3), plot = T)
+nisurface(fitall, pair = c(2, 3), plot = T)
+
+## DCC conditional covariance
+par(mfrow = c(3, 1))
+rcovr = rcov(fitall)
+fitall@mfit$H  # same as rcov(fitall)
+# realized vola and estimated vola
+plot(rcovr[1, 1, ], type = "l", lwd = 2, xlab = "days", ylab = "crix")
+lines(c(cres^2), col = "grey", lty = 2)
+plot(rcovr[2, 2, ], type = "l", lwd = 2, xlab = "days", ylab = "ecrix")
+lines(c(ecres^2), col = "grey", lty = 2)
+plot(rcovr[3, 3, ], type = "l", lwd = 2, xlab = "days", ylab = "efcrix")
+lines(c(efcres^2), col = "grey", lty = 2)
+
+### DCC conditional correlation plot
+rcorr = rcor(fitall)
+rcorr1 = as.zoo(rcorr[1, , ])
+par(mfrow = c(3, 1))
+plot(zoo(rcorr[1, 2, ], order.by = index(crix1)), lwd = 2, ylab = NA, xlab = NA, 
+     main = "CRIX v.s. ECRIX")
+plot(zoo(rcorr[1, 3, ], order.by = index(crix1)), lwd = 2, ylab = NA, xlab = NA, 
+     main = "CRIX v.s. EFCRIX")
+plot(zoo(rcorr[2, 3, ], order.by = index(crix1)), lwd = 2, ylab = NA, xlab = NA, 
+     main = "ECRIX v.s. EFCRIX")
+
+# acf and pacf
+par(mfrow = c(3, 2))
+stdres = fitall@mfit$stdresid
+
+acf(cres^2, ylab = "CRIX", lag.max = 20, main = "ACF of Premodel Residuals", 
+    lwd = 2)
+acf(stdres[, 1]^2, ylab = "CRIX", lag.max = 20, main = "ACF of DCC Residuals", 
+    lwd = 2)
+acf(ecres^2, ylab = "ECRIX", lag.max = 20, main = "ACF of Premodel Residuals", 
+    lwd = 2)
+acf(stdres[, 2]^2, ylab = "ECRIX", lag.max = 20, main = "ACF of DCC Residuals", 
+    lwd = 2)
+acf(efcres^2, ylab = "EFCRIX", lag.max = 20, main = "ACF of Premodel Residuals", 
+    lwd = 2)
+acf(stdres[, 3]^2, ylab = "EFCRIX", lag.max = 20, main = "ACF of DCC Residuals", 
+    lwd = 2)
+
+pacf(cres^2, lag.max = 20, main = "PACF of Premodel Residuals", lwd = 2, 
+     ylab = "CRIX")
+pacf(stdres[, 1]^2, lag.max = 20, main = "PACF of DCC Residuals", lwd = 2, 
+     ylab = "CRIX")
+pacf(ecres^2, lag.max = 20, main = "PACF of Premodel Residuals", lwd = 2, 
+     ylab = "ECRIX")
+pacf(stdres[, 2]^2, lag.max = 20, main = "PACF of DCC Residuals", lwd = 2, 
+     ylab = "ECRIX")
+pacf(efcres^2, lag.max = 20, main = "PACF of Premodel Residuals", lwd = 2, 
+     ylab = "EFCRIX")
+pacf(stdres[, 3]^2, lag.max = 20, main = "PACF of DCC Residuals", lwd = 2, 
+     ylab = "EFCRIX")
+
+# 100-step ahead forecasts of estimated vola
+fitallpred = dccforecast(fitall, n.ahead = 100)
+plot(fitallpred, pair = c(1, 3), which = 3)
+
+rcovrfore = fitallpred@mforecast$H[[1]]
+rrr = seq(616, 715, 1)
+fores1 = zoo(rcovrfore[1, 1, ], order.by = rrr)
+fores2 = zoo(rcovrfore[2, 2, ], order.by = rrr)
+fores3 = zoo(rcovrfore[3, 3, ], order.by = rrr)
+
+par(mfrow = c(3, 1))
+plot(rcovr[1, 1, ], type = "l", lwd = 2, xlab = "days", ylab = "crix", 
+     xlim = c(0, 715))
+lines(c(cres^2), col = "grey", lty = 2)
+lines(fores1, xlim = c(616, 715), col = "red", lwd = 2)
+
+plot(rcovr[2, 2, ], type = "l", lwd = 2, xlab = "days", ylab = "ecrix", 
+     xlim = c(0, 715))
+lines(c(ecres^2), col = "grey", lty = 2)
+lines(fores2, xlim = c(616, 715), col = "red", lwd = 2)
+
+plot(rcovr[3, 3, ], type = "l", lwd = 2, xlab = "days", ylab = "efcrix", 
+     xlim = c(0, 715))
+lines(c(efcres^2), col = "grey", lty = 2)
+lines(fores3, xlim = c(616, 715), col = "red", lwd = 2)
+
+# corr forecast
+forecorr = fitallpred@mforecast$Q[[1]]
+fores1 = zoo(forecorr[1, 2, ], order.by = rrr)
+fores2 = zoo(forecorr[1, 3, ], order.by = rrr)
+fores3 = zoo(forecorr[2, 3, ], order.by = rrr)
+
+
+
+
+
+# load dataset
+load(file = "C:/Users/Administrator/Desktop/crix.RData")
+
+# plot of crix
+# plot(as.xts(crix), type="l", auto.grid=FALSE, main = NA)
+plot(crix1, ylab = NA, xlab = NA)
+
+# plot of crix return
+ret   = diff(log(crix1))
+
+
+
+
+
+rm(list = ls(all = TRUE))
+graphics.off()
+
+# install and load packages
+libraries = c("zoo", "tseries")
+lapply(libraries, function(x) if (!(x %in% installed.packages())) {
+  install.packages(x)
+})
+lapply(libraries, library, quietly = TRUE, character.only = TRUE)
+
+# load dataset
+load(file = "C:/Users/Administrator/Desktop/crix.RData")
+ret = diff(log(crix))
+
+# d order
+Box.test(ret, type = "Ljung-Box", lag = 20)
+
+# stationary test
+adf.test(ret, alternative = "stationary")
+kpss.test(ret, null = "Trend")
+
+par(mfrow = c(1, 2))
+# acf plot
+autocorr = acf(ret, lag.max = 20, ylab = "Sample Autocorrelation", main = NA, 
+               lwd = 2, ylim = c(-0.3, 1))
+
+# LB test of linear dependence
+print(cbind(autocorr$lag, autocorr$acf))
+Box.test(ret, type = "Ljung-Box", lag = 1, fitdf = 0)
+Box.test(autocorr$acf, type = "Ljung-Box")
+
+# plot of pacf
+autopcorr = pacf(ret, lag.max = 20, ylab = "Sample Partial Autocorrelation", 
+                 main = NA, ylim = c(-0.3, 0.3), lwd = 2)
+print(cbind(autopcorr$lag, autopcorr$acf))
+
+# arima model
+par(mfrow = c(1, 1))
+auto.arima(ret)
+fit1 = arima(ret, order = c(1, 0, 1))
+tsdiag(fit1)
+Box.test(fit1$residuals, lag = 1)
+
+# aic
+aic = matrix(NA, 6, 6)
+for (p in 0:4) {
+  for (q in 0:3) {
+    a.p.q = arima(ret, order = c(p, 0, q))
+    aic.p.q = a.p.q$aic
+    aic[p + 1, q + 1] = aic.p.q
+  }
+}
+aic
+
+# bic
+bic = matrix(NA, 6, 6)
+for (p in 0:4) {
+  for (q in 0:3) {
+    b.p.q = arima(ret, order = c(p, 0, q))
+    bic.p.q = AIC(b.p.q, k = log(length(ret)))
+    bic[p + 1, q + 1] = bic.p.q
+  }
+}
+bic
+
+# select p and q order of ARIMA model
+fit4 = arima(ret, order = c(2, 0, 3))
+tsdiag(fit4)
+Box.test(fit4$residuals, lag = 1)
+
+fitr4 = arima(ret, order = c(2, 1, 3))
+tsdiag(fitr4)
+Box.test(fitr4$residuals, lag = 1)
+
+# to conclude, 202 is better than 213
+fit202 = arima(ret, order = c(2, 0, 2))
+tsdiag(fit202)
+tsdiag(fit4)
+tsdiag(fitr4)
+
+AIC(fit202, k = log(length(ret)))
+AIC(fit4, k = log(length(ret)))
+AIC(fitr4, k = log(length(ret)))
+fit202$aic
+fit4$aic
+fitr4$aic
+
+# arima202 predict
+fit202 = arima(ret, order = c(2, 0, 2))
+crpre = predict(fit202, n.ahead = 30)
+
+dates = seq(as.Date("02/08/2014", format = "%d/%m/%Y"), by = "days", length = length(ret))
+
+plot(ret, type = "l", xlim = c(0, 644), ylab = "log return", xlab = "days", 
+     lwd = 1.5)
+lines(crpre$pred, col = "red", lwd = 3)
+lines(crpre$pred + 2 * crpre$se, col = "red", lty = 3, lwd = 3)
+lines(crpre$pred - 2 * crpre$se, col = "red", lty = 3, lwd = 3)
+# plot(as.xts(ret), type="l", auto.grid=FALSE, main = NA)
+plot(ret, ylab = NA, xlab = NA)
+
+mean(ret)
+var(ret)
+sd(ret)
+
+# histogram of price
+hist(crix, col = "grey", breaks = 40, freq = FALSE)
+lines(density(crix), lwd = 2)
+
+par(mfrow = c(1, 2))
+# histogram of returns
+hist(ret, col = "grey", breaks = 20, freq = FALSE, ylim = c(0, 25), xlab = NA)
+lines(density(ret), lwd = 2)
+mu = mean(ret)
+sigma = sd(ret)
+x = seq(-4, 4, length = 100)
+curve(dnorm(x, mean = mean(ret), sd = sd(ret)), add = TRUE, col = "darkblue", 
+      lwd = 2)
+# qq-plot
+qqnorm(ret)
+qqline(ret, col = "blue", lwd = 3)
+
+# normality test
+ret1 = diff(log(crix))
+ks.test(ret1, "pnorm", mean(ret), sd(ret))
+shapiro.test(ret1)
