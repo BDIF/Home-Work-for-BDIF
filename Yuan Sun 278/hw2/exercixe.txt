@@ -1,0 +1,28 @@
+ex1 and ex2
+hw1.df = read.csv("hw1.csv",header = TRUE)
+plot(hw1.df$ram~hw1.df$year)
+
+
+splines.reg.l = smooth.spline(x = hw1.df$year, y = hw1.df$ram, spar = 0.2)
+splines.reg.2 = smooth.spline(x = hw1.df$year, y = hw1.df$ram, spar = 1)
+splines.reg.3= smooth.spline(x = hw1.df$year, y = hw1.df$ram, spar = 2)
+lines(splines.reg.1, col = "red", lwd = 2)  # regression line with lambda = 0.2
+lines(splines.reg.2, col = "green", lwd = 2)  # regression line with lambda = 1
+lines(splines.reg.3, col = "blue", lwd = 2)  # regression line with lambda = 2
+  
+
+
+
+ex3
+ x = 6
+ n = 1000
+ lambda = 2
+ p = lambda / n
+ dbinom (x,2*n,p) # binomial probability mass function
+ 
+ dpois (x, 2*lambda ) # Poisson probability mass function
+ 
+ dpois (0, 5 )
+
+
+
